@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container mt-4">
+    <h2 class="mb-4">Lista de Tarefas</h2>
+    
+    <form id="task-form" class="mb-3">
+        <div class="input-group">
+            <input type="text" id="task-input" class="form-control" placeholder="Nova tarefa" required>
+            <button type="submit" class="btn btn-primary">Adicionar</button>
+        </div>
+    </form>
+
+    <ul id="task-list" class="list-group">
+        {% for task in tasks %}
+            <li class="list-group-item d-flex justify-content-between align-items-center" data-id="{{ task.id }}">
+                <span class="{% if task.completed %}text-decoration-line-through{% endif %}">{{ task.title }}</span>
+                <div>
+                    <button class="btn btn-sm btn-success complete-btn">✓</button>
+                    <button class="btn btn-sm btn-danger delete-btn">✗</button>
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const taskForm = document.getElementById("task-form");
+            const taskInput = document.getElementById("task-input");
+            const taskList = document.getElementById("task-list");
+
+            // Criar tarefa (POST)
+            taskForm.addEventListener("submit", function(event) {
+                event.preventDefault();
+                const title = taskInput.value.trim();
+                if (title) {
+                    fetch("/tasks/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "X-CSRFToken": getCSRFToken() },
+                        body: JSON.stringify({ title: title })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        const newTask = document.createElement("li");
+                        newTask.className = "list-group-item d-flex justify-content-between align-items-center";
+                        newTask.dataset.id = data.id;
+                        newTask.innerHTML = `
+                            <span>${data.title}</span>
+                            <div>
+                                <button class="btn btn-sm btn-success complete-btn">✓</button>
+                                <button class="btn btn-sm btn-danger delete-btn">✗</button>
+                            </div>
+                        `;
+                        taskList.appendChild(newTask);
+                        taskInput.value = "";
+                    });
+                }
+            });
+
+            // Alternar tarefa como completa (PATCH)
+            taskList.addEventListener("click", function(event) {
+                if (event.target.classList.contains("complete-btn")) {
+                    const taskItem = event.target.closest("li");
+                    const taskId = taskItem.dataset.id;
+                    fetch(`/tasks/${taskId}/`, { method: "PATCH", headers: { "X-CSRFToken": getCSRFToken() } })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.completed) {
+                            taskItem.querySelector("span").classList.add("text-decoration-line-through");
+                        } else {
+                            taskItem.querySelector("span").classList.remove("text-decoration-line-through");
+                        }
+                    });
+                }
+            });
+
+            // Excluir tarefa (DELETE)
+            taskList.addEventListener("click", function(event) {
+                if (event.target.classList.contains("delete-btn")) {
+                    const taskItem = event.target.closest("li");
+                    const taskId = taskItem.dataset.id;
+                    fetch(`/tasks/${taskId}/`, { method: "DELETE", headers: { "X-CSRFToken": getCSRFToken() } })
+                    .then(response => {
+                        if (response.status === 204) {
+                            taskItem.remove();
+                        }
+                    });
+                }
+            });
+
+            // Função para obter CSRF Token do cookie
+            function getCSRFToken() {
+                const cookieValue = document.cookie.match(/csrftoken=([^;]+)/);
+                return cookieValue ? cookieValue[1] : "";
+            }
+        });
+    </script>
+</body>
+</html>
